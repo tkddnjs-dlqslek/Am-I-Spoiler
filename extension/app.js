@@ -31,17 +31,21 @@ styleSheet.textContent = `
   ytd-video-renderer:hover .yt-spoiler-btn,
   ytd-compact-video-renderer:hover .yt-spoiler-btn,
   ytd-reel-item-renderer:hover .yt-spoiler-btn,
-  ytd-playlist-video-renderer:hover .yt-spoiler-btn { display: block; }
+  ytd-playlist-video-renderer:hover .yt-spoiler-btn,
+  yt-lockup-view-model:hover .yt-spoiler-btn,
+  ytm-shorts-lockup-view-model:hover .yt-spoiler-btn { display: block; }
 
   /* 쇼츠 선반 — 작은 버튼 */
-  ytd-reel-item-renderer .yt-spoiler-btn {
+  ytd-reel-item-renderer .yt-spoiler-btn,
+  ytm-shorts-lockup-view-model .yt-spoiler-btn {
     padding: 4px 10px;
     font-size: 11px;
     bottom: 6px;
     right: 6px;
   }
   /* 시청 중 우측 사이드바 — 썸네일 너비(168px) 기준 왼쪽 정렬 */
-  ytd-compact-video-renderer .yt-spoiler-btn {
+  ytd-compact-video-renderer .yt-spoiler-btn,
+  yt-lockup-view-model .yt-spoiler-btn {
     padding: 4px 8px;
     font-size: 11px;
     bottom: 6px;
@@ -280,9 +284,11 @@ const CARD_TYPES = [
   'ytd-rich-item-renderer',                         // 홈 + 채널 동영상 탭
   'ytd-grid-video-renderer',                        // 채널 동영상 탭 (구형 레이아웃)
   'ytd-video-renderer',                             // 검색결과
-  'ytd-compact-video-renderer',                     // 영상 시청 중 우측 추천 영상
+  'ytd-compact-video-renderer',                     // 영상 시청 중 우측 추천 영상 (구형)
+  'yt-lockup-view-model',                           // 영상 시청 중 우측 추천 영상 (신형)
   'ytd-reel-item-renderer',                         // 홈 쇼츠 선반
   'ytd-playlist-video-renderer',                    // 나중에 볼 동영상 / 재생목록
+  'ytm-shorts-lockup-view-model',                   // 쇼츠 (검색결과 + 사이드바)
 ];
 
 // 카드 타입별 버튼 붙일 컨테이너
@@ -299,6 +305,14 @@ function getCardContainer(card) {
   if (tag === 'ytd-reel-item-renderer') {
     return card;
   }
+  if (tag === 'yt-lockup-view-model') {
+    // 신형 사이드바 카드: 내부 div.yt-lockup-view-model이 실제 레이아웃 컨테이너
+    return card.querySelector('div.yt-lockup-view-model') || card;
+  }
+  if (tag === 'ytm-shorts-lockup-view-model') {
+    // 쇼츠 카드: 썸네일 컨테이너 위에 버튼 오버레이
+    return card.querySelector('div.shortsLockupViewModelHostThumbnailParentContainer') || card;
+  }
   if (tag === 'ytd-rich-item-renderer') {
     return card.querySelector('#content') || card.querySelector('#dismissible') || card;
   }
@@ -308,6 +322,10 @@ function getCardContainer(card) {
 // 카드 한 개에 버튼 주입
 function injectButtonIntoCard(card) {
   if (card.querySelector('.yt-spoiler-btn')) return;
+
+  // yt-lockup-view-model은 watch 페이지 우측 사이드바에서만 허용
+  if (card.tagName.toLowerCase() === 'yt-lockup-view-model' &&
+      !window.location.pathname.startsWith('/watch')) return;
 
   const container = getCardContainer(card);
   if (!container) return;
