@@ -35,8 +35,8 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
   ]);
   // 영상 언어 감지 (분석/검색 방향)
   const lang = detectLang(ytData);
-  // 사용자 브라우저 언어 감지 (모달 출력 언어)
-  const outputLang = chrome.i18n.getUILanguage().startsWith('ko') ? 'ko' : 'en';
+  // 출력 언어 = 영상 언어 (한글 제목 → 한국어 출력, 영어 제목 → 영어 출력)
+  const outputLang = lang;
   const endingComments = lang === 'ko' ? ytData.koEndingComments : ytData.enEndingComments;
   const ytDataForClaude = { ...ytData, endingComments };
 
