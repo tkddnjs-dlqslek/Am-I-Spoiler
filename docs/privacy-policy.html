@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Am I Spoiler?</title>
+  <style>
+    body {
+      max-width: 720px;
+      margin: 60px auto;
+      padding: 0 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #222;
+      line-height: 1.7;
+    }
+    h1 { font-size: 28px; margin-bottom: 4px; }
+    h2 { font-size: 18px; margin-top: 36px; }
+    p, li { font-size: 15px; color: #444; }
+    a { color: #c00; }
+    .updated { color: #888; font-size: 13px; margin-bottom: 32px; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: March 27, 2026</p>
+
+  <p>
+    <strong>Am I Spoiler?</strong> ("the Extension") is a Chrome extension that analyzes
+    YouTube video thumbnails to detect potential spoilers using AI.
+    This Privacy Policy explains what data the Extension accesses and how it is used.
+  </p>
+
+  <h2>Data We Access</h2>
+  <p>
+    When you click the "Spoiler?" button on a YouTube video thumbnail, the Extension
+    reads the <strong>YouTube video ID</strong> from the current page URL and sends it
+    to our backend server (<code>am-i-spoiler.vercel.app</code>) for analysis.
+  </p>
+  <p>
+    This is the only data transmitted. We do <strong>not</strong> collect:
+  </p>
+  <ul>
+    <li>Personal identification information (name, email, address)</li>
+    <li>Browsing history or watch history</li>
+    <li>Authentication credentials</li>
+    <li>Financial or payment information</li>
+    <li>Any data unrelated to the video being analyzed</li>
+  </ul>
+
+  <h2>Data Storage</h2>
+  <p>
+    The Extension does <strong>not</strong> store any user data permanently.
+    Video IDs sent to the backend are used solely to perform the spoiler analysis
+    and are not logged, saved, or shared with third parties.
+  </p>
+
+  <h2>Third-Party Services</h2>
+  <p>
+    To perform analysis, the backend server communicates with the following services:
+  </p>
+  <ul>
+    <li><strong>YouTube Data API</strong> — to fetch video metadata</li>
+    <li><strong>Anthropic Claude API</strong> — to perform AI-based spoiler analysis</li>
+    <li><strong>Serper API</strong> — to search for airing status information</li>
+    <li><strong>TMDB API</strong> — to retrieve streaming platform availability</li>
+  </ul>
+  <p>
+    All API keys for these services are stored securely on the server and are
+    never exposed to the user or transmitted through the Extension.
+  </p>
+
+  <h2>Permissions</h2>
+  <ul>
+    <li><strong>activeTab</strong> — to read the current YouTube page URL and extract the video ID</li>
+    <li><strong>scripting</strong> — to inject the Spoiler button into YouTube video thumbnails</li>
+    <li><strong>storage</strong> — to temporarily hold analysis state during a session</li>
+    <li><strong>youtube.com host permission</strong> — to operate on YouTube pages</li>
+    <li><strong>am-i-spoiler.vercel.app host permission</strong> — to communicate with the analysis backend</li>
+  </ul>
+
+  <h2>Children's Privacy</h2>
+  <p>
+    This Extension is not directed at children under 13 and does not knowingly
+    collect any personal data from minors.
+  </p>
+
+  <h2>Changes to This Policy</h2>
+  <p>
+    We may update this Privacy Policy from time to time. Changes will be reflected
+    by updating the date at the top of this page.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    For questions about this Privacy Policy, please open an issue at
+    <a href="https://github.com/tkddnjs-dlqslek/Am-I-Spoiler/issues" target="_blank">
+      github.com/tkddnjs-dlqslek/Am-I-Spoiler/issues
+    </a>.
+  </p>
+</body>
+</html>
