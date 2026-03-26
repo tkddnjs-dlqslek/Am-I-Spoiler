@@ -250,12 +250,10 @@ function createSpoilerButton(videoCard) {
     const videoId = extractVideoId(rawHref);
     if (!videoId) return;
 
-    const videoUrl = new URL(rawHref, 'https://www.youtube.com').href;
-
     startProgressAnimation(btn, videoId);
 
     chrome.runtime.sendMessage(
-      { type: 'ANALYZE', videoId, videoUrl },
+      { type: 'ANALYZE', videoId },
       (response) => {
         stopProgressAnimation(btn, videoId);
 

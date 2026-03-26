@@ -6,7 +6,7 @@ const BACKEND = 'https://am-i-spoiler.vercel.app';
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'ANALYZE') {
     const tabId = sender.tab.id;
-    handleAnalyze(request.videoId, request.videoUrl, tabId)
+    handleAnalyze(request.videoId, tabId)
       .then(result => sendResponse({ ok: true, data: result }))
       .catch(err => sendResponse({ ok: false, error: err.message }));
     return true;
@@ -20,14 +20,14 @@ function sendProgress(tabId, videoId, message) {
 
 // ─── 메인 분석 함수 ───────────────────────────────────────────────────────────
 
-async function handleAnalyze(videoId, videoUrl, tabId) {
+async function handleAnalyze(videoId, tabId) {
   console.group(`[Spoiler AI] ${videoId}`);
 
-  // 1. YouTube data + ad signal
+  // 1. YouTube data
   sendProgress(tabId, videoId, 'Fetching video info...');
-  const ytRes = await post(`${BACKEND}/api/youtube`, { videoId, videoUrl });
+  const ytRes = await post(`${BACKEND}/api/youtube`, { videoId });
   if (!ytRes.ok) throw new Error(ytRes.error);
-  const { ytData, hasAd } = ytRes.data;
+  const { ytData } = ytRes.data;
 
   const lang = detectLang(ytData);
   const outputLang = lang;
@@ -58,7 +58,7 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
   const endingComments = lang === 'ko' ? ytData.koEndingComments : ytData.enEndingComments;
   const ytDataForClaude = { ...ytData, endingComments };
   const claudeRes = await post(`${BACKEND}/api/claude`, {
-    ytData: ytDataForClaude, hasAd, searchSnippets, workTitle, lang, outputLang,
+    ytData: ytDataForClaude, searchSnippets, workTitle, lang, outputLang,
   });
   if (!claudeRes.ok) throw new Error(claudeRes.error);
   const result = { ...claudeRes.data, workTitle };
@@ -67,7 +67,7 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
   if (ottRes.data) result.ottPlatforms = ottRes.data;
 
   console.groupEnd();
-  return { ...result, hasAd };
+  return result;
 }
 
 

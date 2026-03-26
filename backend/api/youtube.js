@@ -1,27 +1,31 @@
-// /api/youtube — YouTube Data API + ad signal proxy
+// /api/youtube — YouTube Data API proxy
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers });
 
   try {
-    const { videoId, videoUrl } = req.body;
+    const { videoId } = await req.json();
     const ytKey = process.env.YT_KEY;
-    if (!ytKey) return res.status(500).json({ ok: false, error: 'YT_KEY not configured' });
+    if (!ytKey) return new Response(JSON.stringify({ ok: false, error: 'YT_KEY not configured' }), { status: 500, headers });
 
-    const [metaJson, koEndingComments, enEndingComments, hasAd] = await Promise.all([
+    const [metaJson, koEndingComments, enEndingComments] = await Promise.all([
       fetch(`https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet,contentDetails,statistics&key=${ytKey}`)
         .then(r => r.json()),
       fetchComments(videoId, ytKey, '결말', 30),
       fetchComments(videoId, ytKey, 'ending', 30),
-      fetchAdSignal(videoUrl),
     ]);
 
     if (!metaJson.items || metaJson.items.length === 0) {
-      return res.status(404).json({ ok: false, error: 'Video not found' });
+      return new Response(JSON.stringify({ ok: false, error: 'Video not found' }), { status: 404, headers });
     }
 
     const item = metaJson.items[0];
@@ -46,9 +50,9 @@ export default async function handler(req, res) {
       topComments,
     };
 
-    res.json({ ok: true, data: { ytData, hasAd } });
+    return new Response(JSON.stringify({ ok: true, data: { ytData } }), { headers });
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+    return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
   }
 }
 
@@ -65,15 +69,5 @@ async function fetchComments(videoId, ytKey, searchTerms, maxResults) {
     });
   } catch (_) {
     return [];
-  }
-}
-
-async function fetchAdSignal(videoUrl) {
-  try {
-    const res = await fetch(videoUrl);
-    const html = await res.text();
-    return html.includes('"adPlacements"') && !html.includes('"adPlacements":[]');
-  } catch (_) {
-    return null;
   }
 }

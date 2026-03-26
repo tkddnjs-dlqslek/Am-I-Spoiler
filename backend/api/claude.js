@@ -1,25 +1,30 @@
 // /api/claude — Claude API proxy
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers });
 
   try {
-    const { ytData, hasAd, searchSnippets, workTitle, lang, outputLang } = req.body;
+    const { ytData, searchSnippets, workTitle, lang, outputLang } = await req.json();
     const claudeKey = process.env.CLAUDE_KEY;
-    if (!claudeKey) return res.status(500).json({ ok: false, error: 'CLAUDE_KEY not configured' });
+    if (!claudeKey) return new Response(JSON.stringify({ ok: false, error: 'CLAUDE_KEY not configured' }), { status: 500, headers });
 
-    const result = await askClaude(ytData, hasAd, searchSnippets, workTitle, claudeKey, lang, outputLang);
-    res.json({ ok: true, data: result });
+    const result = await askClaude(ytData, searchSnippets, workTitle, claudeKey, lang, outputLang);
+    return new Response(JSON.stringify({ ok: true, data: result }), { headers });
   } catch (e) {
-    res.status(500).json({ ok: false, error: e.message });
+    return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers });
   }
 }
 
-async function askClaude(ytData, hasAd, searchSnippets, workTitle, claudeKey, lang = 'en', outputLang = 'en') {
+async function askClaude(ytData, searchSnippets, workTitle, claudeKey, lang = 'en', outputLang = 'en') {
   const formatComments = (list) =>
     list?.length > 0
       ? list.map((c, i) => `${i + 1}. [likes: ${c.likes}] ${c.text}`).join('\n')
@@ -29,8 +34,6 @@ async function askClaude(ytData, hasAd, searchSnippets, workTitle, claudeKey, la
   const topCommentsText    = ytData.topComments?.length > 0
     ? formatComments(ytData.topComments)
     : null;
-
-  const adText = hasAd === null ? 'unknown' : (hasAd ? 'yes' : 'no');
 
   const userContent = `
 [Video Title]
@@ -44,9 +47,6 @@ ${ytData.publishedAt}
 
 [Duration]
 ${ytData.duration}
-
-[Has Ads]
-${adText}
 
 [Comments containing "${lang === 'ko' ? '결말' : 'ending'}" — up to 30, sorted by likes — primary signal]
 ${endingCommentsText}
@@ -67,7 +67,6 @@ Use these criteria to decide:
 - If the title contains "part 1", "review 1", "first half", "1부", "전편" → likely NO ending
 - If the work is currently airing/in theaters → ending unlikely to be covered
 - If duration is very short (under PT10M) → likely a partial review
-- Ads are NOT a reliable signal — ignore this field for the verdict
 ${lang === 'ko'
   ? '- Note: comments are in Korean. "결말 없음" = no ending, "1부냐" = is this part 1?, "중간에 끊음" = cuts off midway, "2편 언제" = when is part 2'
   : '- Note: comments are in English. Look for phrases like "no ending", "cliffhanger", "part 1 only", "cuts off", "where\'s the rest"'}

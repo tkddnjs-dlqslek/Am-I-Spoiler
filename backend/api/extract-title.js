@@ -1,16 +1,21 @@
 // /api/extract-title — 경량 Claude 호출: workTitle만 추출 (max_tokens: 100)
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers });
 
   try {
-    const { title, description } = req.body;
+    const { title, description } = await req.json();
     const claudeKey = process.env.CLAUDE_KEY;
-    if (!claudeKey) return res.status(500).json({ ok: false, error: 'CLAUDE_KEY not configured' });
+    if (!claudeKey) return new Response(JSON.stringify({ ok: false, error: 'CLAUDE_KEY not configured' }), { status: 500, headers });
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -49,13 +54,13 @@ export default async function handler(req, res) {
     });
 
     const json = await r.json();
-    if (json.error) return res.status(500).json({ ok: false, error: json.error.message });
+    if (json.error) return new Response(JSON.stringify({ ok: false, error: json.error.message }), { status: 500, headers });
 
     const toolUse = json.content?.find(b => b.type === 'tool_use');
     const workTitle = toolUse?.input?.workTitle ?? null;
 
-    res.json({ ok: true, data: workTitle });
+    return new Response(JSON.stringify({ ok: true, data: workTitle }), { headers });
   } catch (e) {
-    res.json({ ok: true, data: null }); // non-fatal, fallback to raw title
+    return new Response(JSON.stringify({ ok: true, data: null }), { headers }); // non-fatal fallback
   }
 }

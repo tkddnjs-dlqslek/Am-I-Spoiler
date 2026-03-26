@@ -1,14 +1,19 @@
 // /api/ott — TMDB Watch Providers + Serper fallback proxy
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+export const config = { runtime: 'edge' };
+
+export default async function handler(req) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers });
 
   try {
-    const { title, lang } = req.body;
+    const { title, lang } = await req.json();
     const tmdbKey   = process.env.TMDB_KEY;
     const serperKey = process.env.SERPER_KEY;
     const region    = lang === 'ko' ? 'KR' : 'US';
@@ -18,7 +23,7 @@ export default async function handler(req, res) {
       const hit = await tmdbSearch(title, tmdbKey);
       if (hit) {
         const platforms = await tmdbWatchProviders(hit.id, hit.mediaType, tmdbKey, region);
-        if (platforms) return res.json({ ok: true, data: platforms });
+        if (platforms) return new Response(JSON.stringify({ ok: true, data: platforms }), { headers });
       }
     }
 
@@ -26,12 +31,12 @@ export default async function handler(req, res) {
     if (serperKey) {
       const snippets = await ottSearch(title, serperKey, lang);
       const platforms = extractOttFromSnippets(snippets, lang);
-      return res.json({ ok: true, data: platforms });
+      return new Response(JSON.stringify({ ok: true, data: platforms }), { headers });
     }
 
-    res.json({ ok: true, data: null });
+    return new Response(JSON.stringify({ ok: true, data: null }), { headers });
   } catch (_) {
-    res.json({ ok: true, data: null });
+    return new Response(JSON.stringify({ ok: true, data: null }), { headers });
   }
 }
 
