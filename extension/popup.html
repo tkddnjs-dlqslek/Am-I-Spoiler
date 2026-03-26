@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 280px;
+      padding: 16px;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 13px;
+      color: #222;
+    }
+    h2 {
+      font-size: 14px;
+      margin-bottom: 14px;
+      color: #cc0000;
+    }
+    .field { margin-bottom: 10px; }
+    label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 3px;
+    }
+    input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+    input:focus { outline: none; border-color: #cc0000; }
+    .hint {
+      font-size: 10px;
+      color: #999;
+      margin-top: 2px;
+    }
+    button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px;
+      background: #cc0000;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #aa0000; }
+    #status {
+      margin-top: 8px;
+      font-size: 11px;
+      text-align: center;
+      color: #155724;
+      min-height: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎬 Spoiler AI Settings</h2>
+
+  <div class="field">
+    <label>Claude API Key *</label>
+    <input type="password" id="claudeKey" placeholder="sk-ant-..." autocomplete="off">
+    <div class="hint">console.anthropic.com</div>
+  </div>
+
+  <div class="field">
+    <label>YouTube Data API Key *</label>
+    <input type="password" id="ytKey" placeholder="AIza..." autocomplete="off">
+    <div class="hint">Google Cloud Console (free, 10,000 req/day)</div>
+  </div>
+
+  <div class="field">
+    <label>Serper API Key (optional)</label>
+    <input type="password" id="braveKey" placeholder="serper..." autocomplete="off">
+    <div class="hint">serper.dev (free 2,500 calls) — skips web search if omitted</div>
+  </div>
+
+  <div class="field">
+    <label>TMDB API Key (optional)</label>
+    <input type="password" id="tmdbKey" placeholder="eyJ..." autocomplete="off">
+    <div class="hint">themoviedb.org — OTT platform lookup (Netflix, Wavve, etc.)</div>
+  </div>
+
+  <button id="saveBtn">Save</button>
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

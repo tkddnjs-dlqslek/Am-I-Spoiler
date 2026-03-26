@@ -1,20 +1,28 @@
 {
-    "manifest_version": 3,
-    "name": "Youtube Spoiler AI",
-    "version": "1.0",
-    "description": "유튜브 영상 옆에 버튼넣어줌",
-    "permissions": ["scripting", "activeTab"],
-    "host_permissions": ["https://www.youtube.com/*"],
-    "content_scripts": [
-      {
-        "matches": ["https://www.youtube.com/*"],
-        "js": ["app.js"],
-        "run_at": "document_idle"
-      }
-    ],
-    "action": {
-      "default_title": "Youtube Spoiler Extension"
+  "manifest_version": 3,
+  "name": "Youtube Spoiler AI",
+  "version": "2.0",
+  "description": "Instantly check if a YouTube review reveals the ending. Works on K-dramas, movies & anime.",
+  "permissions": ["scripting", "activeTab", "storage"],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://www.googleapis.com/*",
+    "https://api.anthropic.com/*",
+    "https://google.serper.dev/*",
+    "https://api.themoviedb.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Spoiler AI 설정"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["app.js"],
+      "run_at": "document_idle"
     }
+  ]
 }
-
-
