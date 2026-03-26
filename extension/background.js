@@ -31,7 +31,7 @@ async function handleAnalyze(videoId, tabId) {
 
   const lang = detectLang(ytData);
   const outputLang = lang;
-  console.log('[1] YouTube data', { title: ytData.title, lang, hasAd });
+  console.log('[1] YouTube data', { title: ytData.title, lang });
 
   // 2. Claude 1패스 (경량) → workTitle 추출
   sendProgress(tabId, videoId, 'Identifying work...');

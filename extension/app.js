@@ -250,6 +250,12 @@ function createSpoilerButton(videoCard) {
     const videoId = extractVideoId(rawHref);
     if (!videoId) return;
 
+    // 확장 context 유효성 체크 (재로드 후 무효화 방지)
+    if (!chrome.runtime?.id) {
+      showErrorModal(videoCard, 'Extension reloaded — please refresh the page.');
+      return;
+    }
+
     startProgressAnimation(btn, videoId);
 
     chrome.runtime.sendMessage(
@@ -355,10 +361,6 @@ const ICONS = {
     <path d="M8 8c0-1.1.9-2 2-2s2 .9 2 2c0 1-.6 1.5-1.3 2C10 10.5 10 11 10 11.5" stroke="#f5b731" stroke-width="1.8" stroke-linecap="round"/>
     <circle cx="10" cy="13.5" r="0.8" fill="#f5b731"/>
   </svg>`,
-  ad: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="1" y="3" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
-    <path d="M4 9V5.5L7 9V5.5M9 5.5h1.5a1 1 0 010 2H9v1.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`,
   tv: `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect x="1" y="2.5" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
     <path d="M5 11.5h4M7 10.5v1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -447,17 +449,15 @@ function showResultModal(card, data) {
   `;
   modal.appendChild(header);
 
-  // ── 2. Meta info (ads · airing) ──
-  const adLabel     = data.hasAd === null ? 'Ads Unknown' : data.hasAd ? 'Has Ads' : 'No Ads';
+  // ── 2. Meta info (airing) ──
   const airingLabel = data.isAiring === null ? null : data.isAiring ? 'Airing' : 'Ended';
 
-  const metaSec = document.createElement('div');
-  metaSec.className = 'yt-meta-section';
-  metaSec.innerHTML = `
-    <span class="yt-pill">${ICONS.ad} ${adLabel}</span>
-    ${airingLabel ? `<span class="yt-pill">${ICONS.tv} ${airingLabel}</span>` : ''}
-  `;
-  modal.appendChild(metaSec);
+  if (airingLabel) {
+    const metaSec = document.createElement('div');
+    metaSec.className = 'yt-meta-section';
+    metaSec.innerHTML = `<span class="yt-pill">${ICONS.tv} ${airingLabel}</span>`;
+    modal.appendChild(metaSec);
+  }
 
   // ── 2.5. OTT 플랫폼 ──
   if (data.ottPlatforms) {
