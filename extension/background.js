@@ -29,34 +29,42 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
   if (!ytRes.ok) throw new Error(ytRes.error);
   const { ytData, hasAd } = ytRes.data;
 
-  // 언어 감지
   const lang = detectLang(ytData);
   const outputLang = lang;
+  console.log('[1] YouTube data', { title: ytData.title, lang, hasAd });
 
-  console.log('[1] YouTube data', { title: ytData.title, lang, outputLang, hasAd });
+  // 2. Claude 1패스 (경량) → workTitle 추출
+  sendProgress(tabId, videoId, 'Identifying work...');
+  const titleRes = await post(`${BACKEND}/api/extract-title`, {
+    title: ytData.title,
+    description: ytData.description,
+  });
+  const workTitle = titleRes.data || null;
+  console.log('[2] workTitle:', workTitle);
 
-  // 2. Web search
+  // 3. Serper(workTitle 기반) + OTT(workTitle 기반) 병렬
   sendProgress(tabId, videoId, 'Searching the web...');
-  const searchRes = await post(`${BACKEND}/api/search`, { title: ytData.title, lang });
+  const searchKey = workTitle || ytData.title;
+  const [searchRes, ottRes] = await Promise.all([
+    post(`${BACKEND}/api/search`, { workTitle: searchKey, lang }),
+    post(`${BACKEND}/api/ott`,    { title: searchKey, lang }),
+  ]);
   const searchSnippets = searchRes.data || '';
-  console.log('[2] Search snippets:\n', searchSnippets);
+  console.log('[3] Search snippets:\n', searchSnippets);
+  console.log('[3] OTT:', ottRes.data);
 
-  // 3. Claude 분석 → workTitle 추출
+  // 4. Claude 2패스 (풀 분석) — workTitle + Serper 결과 포함
   sendProgress(tabId, videoId, 'thinking...');
   const endingComments = lang === 'ko' ? ytData.koEndingComments : ytData.enEndingComments;
   const ytDataForClaude = { ...ytData, endingComments };
-  const claudeRes = await post(`${BACKEND}/api/claude`, { ytData: ytDataForClaude, hasAd, searchSnippets, lang, outputLang });
+  const claudeRes = await post(`${BACKEND}/api/claude`, {
+    ytData: ytDataForClaude, hasAd, searchSnippets, workTitle, lang, outputLang,
+  });
   if (!claudeRes.ok) throw new Error(claudeRes.error);
-  const result = claudeRes.data;
-  console.log('[3] Claude output:', result);
+  const result = { ...claudeRes.data, workTitle };
+  console.log('[4] Claude output:', result);
 
-  // 4. workTitle로 OTT 조회
-  const searchTitle = result.workTitle || ytData.title;
-  const ottRes = await post(`${BACKEND}/api/ott`, { title: searchTitle, lang });
-  if (ottRes.data) {
-    result.ottPlatforms = ottRes.data;
-    console.log('[4] OTT:', result.ottPlatforms);
-  }
+  if (ottRes.data) result.ottPlatforms = ottRes.data;
 
   console.groupEnd();
   return { ...result, hasAd };

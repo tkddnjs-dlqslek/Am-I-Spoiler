@@ -8,18 +8,18 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { ytData, hasAd, searchSnippets, lang, outputLang } = req.body;
+    const { ytData, hasAd, searchSnippets, workTitle, lang, outputLang } = req.body;
     const claudeKey = process.env.CLAUDE_KEY;
     if (!claudeKey) return res.status(500).json({ ok: false, error: 'CLAUDE_KEY not configured' });
 
-    const result = await askClaude(ytData, hasAd, searchSnippets, claudeKey, lang, outputLang);
+    const result = await askClaude(ytData, hasAd, searchSnippets, workTitle, claudeKey, lang, outputLang);
     res.json({ ok: true, data: result });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-async function askClaude(ytData, hasAd, searchSnippets, claudeKey, lang = 'en', outputLang = 'en') {
+async function askClaude(ytData, hasAd, searchSnippets, workTitle, claudeKey, lang = 'en', outputLang = 'en') {
   const formatComments = (list) =>
     list?.length > 0
       ? list.map((c, i) => `${i + 1}. [likes: ${c.likes}] ${c.text}`).join('\n')
@@ -52,7 +52,10 @@ ${adText}
 ${endingCommentsText}
 ${topCommentsText ? `\n[Top comments (supplementary)]\n${topCommentsText}` : ''}
 
-[Web Search Results — ending/airing]
+[Work Title (confirmed)]
+${workTitle || 'Unknown'}
+
+[Web Search Results — airing status]
 ${searchSnippets || 'No results'}
 `.trim();
 
@@ -71,8 +74,8 @@ ${lang === 'ko'
 
 For workTitle, cast, synopsis:
 - Only fill these in if the work title is clearly stated in the video title or description
-- If the title is only inferrable from comments, require 3 or more comments to mention the same work title before filling in workTitle
-- If uncertain, set workTitle/cast/synopsis to null — it is better to return null than to guess incorrectly
+- The work title is already confirmed and provided above — use it for context
+- If uncertain about cast/synopsis, set to null — it is better to return null than to guess incorrectly
 
 ${outputLang === 'ko'
   ? 'All text output fields (reason, synopsis, cast, workTitle) must be written in Korean (한국어).'
@@ -109,7 +112,6 @@ ${outputLang === 'ko'
               type: 'string',
               description: `Reasoning in 1–2 sentences (in ${outputLang === 'ko' ? 'Korean' : 'English'})`
             },
-            workTitle: { type: ['string', 'null'], description: 'Title of the reviewed work. null if unknown' },
             cast:      { type: ['string', 'null'], description: 'Main cast members. null if unknown' },
             synopsis:  { type: ['string', 'null'], description: `2–3 sentence synopsis (in ${outputLang === 'ko' ? 'Korean' : 'English'}). null if unknown` },
             isAiring:  { type: ['boolean', 'null'], description: 'true if currently airing/in theaters, false if finished, null if unknown' },

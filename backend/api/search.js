@@ -1,4 +1,4 @@
-// /api/search — Serper web search proxy (ending/airing info)
+// /api/search — Serper web search proxy (workTitle 기반 방영 정보)
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -8,11 +8,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { title, lang } = req.body;
+    const { workTitle, lang } = req.body;
     const serperKey = process.env.SERPER_KEY;
-    if (!serperKey) return res.json({ ok: true, data: '' });
+    if (!serperKey || !workTitle) return res.json({ ok: true, data: '' });
 
-    const q    = lang === 'ko' ? `${title} 결말 방영` : `${title} ending spoilers complete review`;
+    const q    = lang === 'ko' ? `${workTitle} 방영 완결 시즌` : `${workTitle} airing status seasons episodes`;
     const opts = lang === 'ko' ? { gl: 'kr', hl: 'ko' } : { gl: 'us', hl: 'en' };
 
     const r = await fetch('https://google.serper.dev/search', {
