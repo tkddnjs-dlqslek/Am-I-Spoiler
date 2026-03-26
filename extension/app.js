@@ -27,9 +27,11 @@ styleSheet.textContent = `
   /* 카드 hover 시 버튼 표시 — CSS로 처리 (JS 이벤트보다 안정적) */
   ytd-rich-item-renderer:hover .yt-spoiler-btn,
   ytd-grid-video-renderer:hover .yt-spoiler-btn,
+  ytd-rich-grid-media:hover .yt-spoiler-btn,
   ytd-video-renderer:hover .yt-spoiler-btn,
   ytd-compact-video-renderer:hover .yt-spoiler-btn,
-  ytd-reel-item-renderer:hover .yt-spoiler-btn { display: block; }
+  ytd-reel-item-renderer:hover .yt-spoiler-btn,
+  ytd-playlist-video-renderer:hover .yt-spoiler-btn { display: block; }
 
   /* 쇼츠 선반 — 작은 버튼 */
   ytd-reel-item-renderer .yt-spoiler-btn {
@@ -275,36 +277,32 @@ function createSpoilerButton(videoCard) {
 
 // 지원하는 유튜브 카드 타입
 const CARD_TYPES = [
-  'ytd-rich-item-renderer.ytd-rich-grid-renderer', // 홈
-  'ytd-grid-video-renderer',                        // 채널 동영상 탭
+  'ytd-rich-item-renderer',                         // 홈 + 채널 동영상 탭
+  'ytd-grid-video-renderer',                        // 채널 동영상 탭 (구형 레이아웃)
   'ytd-video-renderer',                             // 검색결과
   'ytd-compact-video-renderer',                     // 영상 시청 중 우측 추천 영상
   'ytd-reel-item-renderer',                         // 홈 쇼츠 선반
+  'ytd-playlist-video-renderer',                    // 나중에 볼 동영상 / 재생목록
 ];
-
-// 재생목록 페이지 여부
-function isPlaylistPage() {
-  return window.location.pathname === '/playlist';
-}
 
 // 카드 타입별 버튼 붙일 컨테이너
 function getCardContainer(card) {
   const tag = card.tagName.toLowerCase();
-  if (tag === 'ytd-video-renderer') {
-    return card.querySelector('#dismissible') || card;
-  }
-  if (tag === 'ytd-compact-video-renderer') {
-    // 사이드바 카드: #dismissible이 썸네일+텍스트 전체를 감싸는 안전한 컨테이너
+  if (
+    tag === 'ytd-video-renderer' ||
+    tag === 'ytd-compact-video-renderer' ||
+    tag === 'ytd-grid-video-renderer' ||
+    tag === 'ytd-playlist-video-renderer'
+  ) {
     return card.querySelector('#dismissible') || card;
   }
   if (tag === 'ytd-reel-item-renderer') {
-    // 쇼츠 선반: 카드 자체를 컨테이너로 사용
     return card;
   }
-  return card.querySelector('#content')
-    || card.querySelector('#container')
-    || card.querySelector('#details')
-    || card;
+  if (tag === 'ytd-rich-item-renderer') {
+    return card.querySelector('#content') || card.querySelector('#dismissible') || card;
+  }
+  return card.querySelector('#dismissible') || card;
 }
 
 // 카드 한 개에 버튼 주입
@@ -321,7 +319,6 @@ function injectButtonIntoCard(card) {
 
 // 현재 DOM의 모든 카드에 일괄 주입 (초기 로드용)
 function injectSpoilerButtons() {
-  if (isPlaylistPage()) return;
   document.querySelectorAll(CARD_SELECTOR).forEach(injectButtonIntoCard);
 }
 
@@ -493,7 +490,6 @@ const CARD_SELECTOR = CARD_TYPES.join(', ');
 
 // ① mouseover: 마우스가 카드에 진입하는 순간 즉시 주입
 document.addEventListener('mouseover', (e) => {
-  if (isPlaylistPage()) return;
   const card = e.target.closest(CARD_SELECTOR);
   if (card) injectButtonIntoCard(card);
 });
@@ -501,7 +497,6 @@ document.addEventListener('mouseover', (e) => {
 // ② MutationObserver: 마우스가 정지된 상태에서 YouTube가 카드를 교체할 때 대응
 // document.querySelectorAll(':hover')로 현재 커서 아래 카드를 찾아 즉시 재주입
 const observer = new MutationObserver(() => {
-  if (isPlaylistPage()) return;
   document.querySelectorAll(CARD_SELECTOR + ':hover')
     .forEach(injectButtonIntoCard);
 });
