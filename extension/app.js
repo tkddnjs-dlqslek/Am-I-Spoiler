@@ -310,8 +310,7 @@ function getCardContainer(card) {
     return card.querySelector('div.yt-lockup-view-model') || card;
   }
   if (tag === 'ytm-shorts-lockup-view-model') {
-    // 쇼츠 카드: 썸네일 컨테이너 위에 버튼 오버레이
-    return card.querySelector('div.shortsLockupViewModelHostThumbnailParentContainer') || card;
+    return card;
   }
   if (tag === 'ytd-rich-item-renderer') {
     return card.querySelector('#content') || card.querySelector('#dismissible') || card;

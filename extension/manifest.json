@@ -6,10 +6,7 @@
   "permissions": ["scripting", "activeTab", "storage"],
   "host_permissions": [
     "https://www.youtube.com/*",
-    "https://www.googleapis.com/*",
-    "https://api.anthropic.com/*",
-    "https://google.serper.dev/*",
-    "https://api.themoviedb.org/*"
+    "https://am-i-spoiler.vercel.app/*"
   ],
   "background": {
     "service_worker": "background.js"
