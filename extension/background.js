@@ -33,14 +33,17 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
     getYouTubeData(videoId, keys.ytKey),
     fetchAdSignal(videoUrl),
   ]);
-  // 언어 감지
+  // 영상 언어 감지 (분석/검색 방향)
   const lang = detectLang(ytData);
+  // 사용자 브라우저 언어 감지 (모달 출력 언어)
+  const outputLang = chrome.i18n.getUILanguage().startsWith('ko') ? 'ko' : 'en';
   const endingComments = lang === 'ko' ? ytData.koEndingComments : ytData.enEndingComments;
   const ytDataForClaude = { ...ytData, endingComments };
 
   console.log('[1] YouTube data', {
     title: ytData.title,
     lang,
+    outputLang,
     publishedAt: ytData.publishedAt,
     duration: ytData.duration,
     viewCount: ytData.viewCount,
@@ -60,7 +63,7 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
 
   // 3. Claude 분석 → workTitle 추출
   sendProgress(tabId, videoId, 'thinking...');
-  const result = await askClaude(ytDataForClaude, hasAd, searchSnippets, keys.claudeKey, lang);
+  const result = await askClaude(ytDataForClaude, hasAd, searchSnippets, keys.claudeKey, lang, outputLang);
   console.log('[3] Claude output:', result);
 
   // 4. Claude가 뽑은 workTitle로 OTT 조회 — lang 기반 region
@@ -309,7 +312,7 @@ function extractOttFromSnippets(snippets, lang = 'en') {
   return found.size > 0 ? [...found].join(', ') : null;
 }
 
-async function askClaude(ytData, hasAd, searchSnippets, claudeKey, lang = 'en') {
+async function askClaude(ytData, hasAd, searchSnippets, claudeKey, lang = 'en', outputLang = 'en') {
   const formatComments = (list) =>
     list.length > 0
       ? list.map((c, i) => `${i + 1}. [likes: ${c.likes}] ${c.text}`).join('\n')
@@ -364,7 +367,9 @@ For workTitle, cast, synopsis:
 - If the title is only inferrable from comments, require 3 or more comments to mention the same work title before filling in workTitle
 - If uncertain, set workTitle/cast/synopsis to null — it is better to return null than to guess incorrectly
 
-All output fields (reason, synopsis, cast, workTitle) must be in English.`;
+${outputLang === 'ko'
+  ? 'All text output fields (reason, synopsis, cast, workTitle) must be written in Korean (한국어).'
+  : 'All text output fields (reason, synopsis, cast, workTitle) must be written in English.'}`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -396,7 +401,7 @@ All output fields (reason, synopsis, cast, workTitle) must be in English.`;
             },
             reason: {
               type: 'string',
-              description: 'Reasoning in 1–2 sentences (in English)'
+              description: `Reasoning in 1–2 sentences (in ${outputLang === 'ko' ? 'Korean' : 'English'})`
             },
             workTitle: {
               type: ['string', 'null'],
