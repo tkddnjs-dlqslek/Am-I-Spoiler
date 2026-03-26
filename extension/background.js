@@ -33,49 +33,48 @@ async function handleAnalyze(videoId, videoUrl, tabId) {
     getYouTubeData(videoId, keys.ytKey),
     fetchAdSignal(videoUrl),
   ]);
+  // 언어 감지
+  const lang = detectLang(ytData);
+  const endingComments = lang === 'ko' ? ytData.koEndingComments : ytData.enEndingComments;
+  const ytDataForClaude = { ...ytData, endingComments };
+
   console.log('[1] YouTube data', {
     title: ytData.title,
+    lang,
     publishedAt: ytData.publishedAt,
     duration: ytData.duration,
     viewCount: ytData.viewCount,
-    endingComments: ytData.endingComments.length,
+    koEndingComments: ytData.koEndingComments.length,
+    enEndingComments: ytData.enEndingComments.length,
     topComments: ytData.topComments.length,
-    endingCommentSample: ytData.endingComments.slice(0, 3),
   });
   console.log('[2] Has ad:', hasAd);
 
-  // 2. Web search + OTT 조회 병렬 실행
+  // 2. Web search (결말/방영 정보용) — lang 기반 쿼리
   let searchSnippets = '';
-  let ottSnippets = '';
-  let directOttPlatforms = null;
-
-  if (keys.braveKey || keys.tmdbKey) {
+  if (keys.braveKey) {
     sendProgress(tabId, videoId, 'Searching the web...');
-    const [webResult, ottResult] = await Promise.all([
-      keys.braveKey ? braveSearch(ytData.title, keys.braveKey) : Promise.resolve(''),
-      getOttPlatforms(ytData.title, keys.tmdbKey, keys.braveKey),
-    ]);
-    searchSnippets = webResult;
-    if (ottResult.direct) {
-      directOttPlatforms = ottResult.direct;
-      console.log('[3] OTT (TMDB direct):', directOttPlatforms);
-    } else {
-      ottSnippets = ottResult.snippets;
-      console.log('[3] OTT (Serper fallback):', ottSnippets);
-    }
-    console.log('[3] Web search:\n', searchSnippets);
-  } else {
-    console.log('[3] Search: no keys, skipping');
+    searchSnippets = await braveSearch(ytData.title, keys.braveKey, lang);
+    console.log('[2] Web search:\n', searchSnippets);
   }
 
-  // 3. Claude analysis
+  // 3. Claude 분석 → workTitle 추출
   sendProgress(tabId, videoId, 'thinking...');
-  const result = await askClaude(ytData, hasAd, searchSnippets, ottSnippets, keys.claudeKey);
+  const result = await askClaude(ytDataForClaude, hasAd, searchSnippets, keys.claudeKey, lang);
+  console.log('[3] Claude output:', result);
 
-  // TMDB 직접 결과가 있으면 Claude 추론값 대신 주입
-  if (directOttPlatforms) result.ottPlatforms = directOttPlatforms;
-
-  console.log('[4] Claude output:', result);
+  // 4. Claude가 뽑은 workTitle로 OTT 조회 — lang 기반 region
+  if (keys.tmdbKey || keys.braveKey) {
+    const searchTitle = result.workTitle || ytData.title;
+    const ottResult = await getOttPlatforms(searchTitle, keys.tmdbKey, keys.braveKey, lang);
+    if (ottResult.direct) {
+      result.ottPlatforms = ottResult.direct;
+      console.log('[4] OTT (TMDB direct):', result.ottPlatforms);
+    } else if (ottResult.snippets) {
+      result.ottPlatforms = extractOttFromSnippets(ottResult.snippets, lang) || null;
+      console.log('[4] OTT (Serper keywords):', result.ottPlatforms);
+    }
+  }
   console.groupEnd();
 
   return { ...result, hasAd };
@@ -94,11 +93,12 @@ function getKeys() {
 // ─── YouTube Data API ─────────────────────────────────────────────────────────
 
 async function getYouTubeData(videoId, ytKey) {
-  // 메타데이터 + 결말 댓글 병렬 요청
-  const [metaJson, endingComments] = await Promise.all([
+  // 메타데이터 + ko/en 결말 댓글 동시 수집
+  const [metaJson, koEndingComments, enEndingComments] = await Promise.all([
     fetch(`https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet,contentDetails,statistics&key=${ytKey}`)
       .then(r => r.json()),
-    fetchComments(videoId, ytKey, '결말', 50),
+    fetchComments(videoId, ytKey, '결말', 30),
+    fetchComments(videoId, ytKey, 'ending', 30),
   ]);
 
   if (!metaJson.items || metaJson.items.length === 0) {
@@ -111,8 +111,9 @@ async function getYouTubeData(videoId, ytKey) {
   const viewCount = item.statistics?.viewCount ?? '0';
   const likeCount = item.statistics?.likeCount ?? '0';
 
-  // 결말 댓글이 부족하면 일반 상위 댓글로 보완
-  const topComments = endingComments.length < 5
+  // 두 댓글 세트 모두 부족할 때만 일반 상위 댓글 보완
+  const bestCount = Math.max(koEndingComments.length, enEndingComments.length);
+  const topComments = bestCount < 5
     ? await fetchComments(videoId, ytKey, null, 20)
     : [];
 
@@ -123,9 +124,19 @@ async function getYouTubeData(videoId, ytKey) {
     duration,
     viewCount,
     likeCount,
-    endingComments,
-    topComments
+    defaultLanguage: snippet.defaultLanguage || snippet.defaultAudioLanguage || '',
+    koEndingComments,
+    enEndingComments,
+    topComments,
   };
+}
+
+// 영상 언어 감지: YouTube API 필드 → Hangul 감지 fallback
+function detectLang(ytData) {
+  const lang = ytData.defaultLanguage || '';
+  if (lang.startsWith('ko')) return 'ko';
+  if (lang && !lang.startsWith('ko')) return 'en';
+  return /[\uAC00-\uD7AF]/.test(ytData.title) ? 'ko' : 'en';
 }
 
 
@@ -166,7 +177,9 @@ async function fetchAdSignal(videoUrl) {
 
 // ─── Serper Search API ────────────────────────────────────────────────────────
 
-async function braveSearch(title, serperKey) {
+async function braveSearch(title, serperKey, lang = 'en') {
+  const q    = lang === 'ko' ? `${title} 결말 방영`            : `${title} ending spoilers complete review`;
+  const opts = lang === 'ko' ? { gl: 'kr', hl: 'ko' }         : { gl: 'us', hl: 'en' };
   try {
     const res = await fetch('https://google.serper.dev/search', {
       method: 'POST',
@@ -174,7 +187,7 @@ async function braveSearch(title, serperKey) {
         'Content-Type': 'application/json',
         'X-API-KEY': serperKey
       },
-      body: JSON.stringify({ q: `${title} 결말 방영`, gl: 'kr', hl: 'ko', num: 5 })
+      body: JSON.stringify({ q, ...opts, num: 5 })
     });
     const json = await res.json();
     if (!json.organic) return '';
@@ -204,16 +217,16 @@ async function tmdbSearch(title, tmdbKey) {
   }
 }
 
-async function tmdbWatchProviders(id, mediaType, tmdbKey) {
+async function tmdbWatchProviders(id, mediaType, tmdbKey, region = 'US') {
   try {
     const res = await fetch(
       `https://api.themoviedb.org/3/${mediaType}/${id}/watch/providers?api_key=${tmdbKey}`
     );
     const json = await res.json();
-    const kr = json.results?.KR;
-    if (!kr) return null;
+    const regionData = json.results?.[region];
+    if (!regionData) return null;
     // flatrate = 구독형 우선, 없으면 rent/buy 순
-    const providers = kr.flatrate ?? kr.rent ?? kr.buy ?? [];
+    const providers = regionData.flatrate ?? regionData.rent ?? regionData.buy ?? [];
     if (!providers.length) return null;
     return providers.map(p => p.provider_name).join(', ');
   } catch (_) {
@@ -223,23 +236,26 @@ async function tmdbWatchProviders(id, mediaType, tmdbKey) {
 
 // TMDB 우선 조회 → 결과 없으면 Serper OTT 검색으로 폴백
 // 반환: { direct: string|null, snippets: string }
-async function getOttPlatforms(title, tmdbKey, serperKey) {
+async function getOttPlatforms(title, tmdbKey, serperKey, lang = 'en') {
+  const region = lang === 'ko' ? 'KR' : 'US';
   if (tmdbKey) {
     const hit = await tmdbSearch(title, tmdbKey);
     if (hit) {
-      const platforms = await tmdbWatchProviders(hit.id, hit.mediaType, tmdbKey);
+      const platforms = await tmdbWatchProviders(hit.id, hit.mediaType, tmdbKey, region);
       if (platforms) return { direct: platforms, snippets: '' };
     }
   }
   if (serperKey) {
-    const snippets = await ottSearch(title, serperKey);
+    const snippets = await ottSearch(title, serperKey, lang);
     return { direct: null, snippets };
   }
   return { direct: null, snippets: '' };
 }
 
 
-async function ottSearch(title, serperKey) {
+async function ottSearch(title, serperKey, lang = 'en') {
+  const q    = lang === 'ko' ? `${title} 넷플릭스 티빙 웨이브 왓챠 어디서`  : `${title} where to stream`;
+  const opts = lang === 'ko' ? { gl: 'kr', hl: 'ko' }                       : { gl: 'us', hl: 'en' };
   try {
     const res = await fetch('https://google.serper.dev/search', {
       method: 'POST',
@@ -247,7 +263,7 @@ async function ottSearch(title, serperKey) {
         'Content-Type': 'application/json',
         'X-API-KEY': serperKey
       },
-      body: JSON.stringify({ q: `${title} where to watch streaming OTT`, gl: 'kr', hl: 'ko', num: 5 })
+      body: JSON.stringify({ q, ...opts, num: 5 })
     });
     const json = await res.json();
     if (!json.organic) return '';
@@ -264,7 +280,36 @@ async function ottSearch(title, serperKey) {
 
 // ─── Claude API ───────────────────────────────────────────────────────────────
 
-async function askClaude(ytData, hasAd, searchSnippets, ottSnippets, claudeKey) {
+function extractOttFromSnippets(snippets, lang = 'en') {
+  const OTT_MAP = lang === 'ko' ? {
+    'netflix': 'Netflix', '넷플릭스': 'Netflix',
+    'tving': 'Tving', '티빙': 'Tving',
+    'wavve': 'Wavve', '웨이브': 'Wavve',
+    'watcha': 'Watcha', '왓챠': 'Watcha',
+    'coupang play': 'Coupang Play', '쿠팡플레이': 'Coupang Play',
+    'disney+': 'Disney+', '디즈니플러스': 'Disney+',
+    'apple tv+': 'Apple TV+',
+    'amazon prime': 'Amazon Prime', 'prime video': 'Amazon Prime',
+  } : {
+    'netflix': 'Netflix',
+    'disney+': 'Disney+', 'disney plus': 'Disney+',
+    'max': 'Max', 'hbo max': 'Max',
+    'hulu': 'Hulu',
+    'apple tv+': 'Apple TV+', 'apple tv plus': 'Apple TV+',
+    'amazon prime': 'Amazon Prime', 'prime video': 'Amazon Prime',
+    'peacock': 'Peacock',
+    'paramount+': 'Paramount+', 'paramount plus': 'Paramount+',
+    'crunchyroll': 'Crunchyroll',
+  };
+  const lower = snippets.toLowerCase();
+  const found = new Set();
+  for (const [kw, name] of Object.entries(OTT_MAP)) {
+    if (lower.includes(kw)) found.add(name);
+  }
+  return found.size > 0 ? [...found].join(', ') : null;
+}
+
+async function askClaude(ytData, hasAd, searchSnippets, claudeKey, lang = 'en') {
   const formatComments = (list) =>
     list.length > 0
       ? list.map((c, i) => `${i + 1}. [likes: ${c.likes}] ${c.text}`).join('\n')
@@ -293,15 +338,12 @@ ${ytData.duration}
 [Has Ads]
 ${adText}
 
-[Comments containing "결말" (ending) — up to 50, sorted by likes — primary signal]
+[Comments containing "${lang === 'ko' ? '결말' : 'ending'}" — up to 30, sorted by likes — primary signal]
 ${endingCommentsText}
 ${topCommentsText ? `\n[Top comments (supplementary)]\n${topCommentsText}` : ''}
 
 [Web Search Results — ending/airing]
 ${searchSnippets || 'No results'}
-
-[OTT Search Results — where to watch]
-${ottSnippets || 'No results'}
 `.trim();
 
   const systemPrompt = `You are an expert at analyzing whether a YouTube review video covers the ending of a movie, drama, webtoon, or manga.
@@ -313,19 +355,16 @@ Use these criteria to decide:
 - If the work is currently airing/in theaters → ending unlikely to be covered
 - If duration is very short (under PT10M) → likely a partial review
 - Ads are NOT a reliable signal: they appear due to creator monetization, Content ID claims by studios, or YouTube's own ad system — ignore this field for the verdict
-- Note: comments are in Korean. "결말 없음" = no ending, "1부냐" = is this part 1?, "중간에 끊음" = cuts off midway, "2편 언제" = when is part 2
+${lang === 'ko'
+  ? '- Note: comments are in Korean. "결말 없음" = no ending, "1부냐" = is this part 1?, "중간에 끊음" = cuts off midway, "2편 언제" = when is part 2'
+  : '- Note: comments are in English. Look for phrases like "no ending", "cliffhanger", "part 1 only", "cuts off", "where\'s the rest"'}
 
 For workTitle, cast, synopsis:
 - Only fill these in if the work title is clearly stated in the video title or description
 - If the title is only inferrable from comments, require 3 or more comments to mention the same work title before filling in workTitle
 - If uncertain, set workTitle/cast/synopsis to null — it is better to return null than to guess incorrectly
 
-For ottPlatforms:
-- Only fill in if web search results explicitly mention which OTT/streaming platforms currently carry the work
-- Format as a comma-separated list (e.g. "Netflix, Disney+, Wavve")
-- Set to null if not found in search results
-
-All output fields (reason, synopsis, cast, workTitle, ottPlatforms) must be in English.`;
+All output fields (reason, synopsis, cast, workTitle) must be in English.`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -375,10 +414,6 @@ All output fields (reason, synopsis, cast, workTitle, ottPlatforms) must be in E
               type: ['boolean', 'null'],
               description: 'true if currently airing/in theaters, false if finished, null if unknown'
             },
-            ottPlatforms: {
-              type: ['string', 'null'],
-              description: 'Comma-separated streaming platforms where the work is available (e.g. "Netflix, Disney+, Wavve"). null if not found in search results.'
-            }
           },
           required: ['verdict', 'confidence', 'reason']
         }
