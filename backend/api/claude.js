@@ -89,7 +89,7 @@ ${outputLang === 'ko'
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
+      max_tokens: 600,
       system: systemPrompt,
       tools: [{
         name: 'spoiler_result',
@@ -109,10 +109,10 @@ ${outputLang === 'ko'
             },
             reason: {
               type: 'string',
-              description: `One concise sentence (in ${outputLang === 'ko' ? 'Korean' : 'English'})`
+              description: `Reasoning in 1–2 sentences (in ${outputLang === 'ko' ? 'Korean' : 'English'})`
             },
             cast:      { type: ['string', 'null'], description: 'Main cast members. null if unknown' },
-            synopsis:  { type: ['string', 'null'], description: `One short sentence (in ${outputLang === 'ko' ? 'Korean' : 'English'}). null if unknown` },
+            synopsis:  { type: ['string', 'null'], description: `2–3 sentence synopsis (in ${outputLang === 'ko' ? 'Korean' : 'English'}). null if unknown` },
             isAiring:  { type: ['boolean', 'null'], description: 'true if currently airing/in theaters, false if finished, null if unknown' },
           },
           required: ['verdict', 'confidence', 'reason']
