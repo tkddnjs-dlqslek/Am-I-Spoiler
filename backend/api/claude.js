@@ -112,7 +112,7 @@ ${outputLang === 'ko'
               description: `One concise sentence (in ${outputLang === 'ko' ? 'Korean' : 'English'})`
             },
             cast:      { type: ['string', 'null'], description: 'Main cast members. null if unknown' },
-            synopsis:  { type: ['string', 'null'], description: `2 sentences max (in ${outputLang === 'ko' ? 'Korean' : 'English'}). null if unknown` },
+            synopsis:  { type: ['string', 'null'], description: `One short sentence (in ${outputLang === 'ko' ? 'Korean' : 'English'}). null if unknown` },
             isAiring:  { type: ['boolean', 'null'], description: 'true if currently airing/in theaters, false if finished, null if unknown' },
           },
           required: ['verdict', 'confidence', 'reason']
